@@ -1,49 +1,88 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$ROOT/ci/common.sh"
+# shellcheck disable=SC1091
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+
+usage() {
+  cat <<EOF
+Usage:
+  VERSION=1.2.3 ./ci/pack.sh
+  ./ci/pack.sh --version 1.2.3
+
+Notes:
+  - Packs only projects under ./src with <IsPackable>true</IsPackable>
+  - Output: ./artifacts
+EOF
+}
+
+VERSION="${VERSION:-}"
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version|-v)
+      VERSION="${2:-}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown argument: $1 (use --help)"
+      ;;
+  esac
+done
+
+[[ -n "$VERSION" ]] || die "VERSION is required. Use VERSION=1.2.3 ./ci/pack.sh or ./ci/pack.sh --version 1.2.3"
 
 require_cmd dotnet
-require_cmd find
 
-VERSION="${VERSION:?VERSION not set (e.g. 1.2.3)}"
-CONFIGURATION="${CONFIGURATION:-Release}"
-ARTIFACTS_DIR="${ARTIFACTS_DIR:-$ROOT/artifacts}"
+ARTIFACTS_DIR="$ROOT_DIR/artifacts"
+ensure_dir "$ARTIFACTS_DIR"
 
-mkdir -p "$ARTIFACTS_DIR"
+log "Packing NuGet packages"
+log "Root: $ROOT_DIR"
+log "Version: $VERSION"
+log "Artifacts: $ARTIFACTS_DIR"
 
-log "Packing NuGet packages (version=$VERSION)"
+# Find csproj under src (excluding bin/obj)
+mapfile -t CSPROJ_FILES < <(
+  find "$ROOT_DIR/src" -type f -name "*.csproj" \
+    -not -path "*/bin/*" -not -path "*/obj/*" \
+    | sort
+)
 
-EXCLUDE_REGEX='(\/test\/|\/tests\/|\.Tests\.|\/API\/|\.API\.|\/Host\/|\/Infrastructure\/|\.Infrastructure\.)'
+[[ ${#CSPROJ_FILES[@]} -gt 0 ]] || die "No .csproj files found under $ROOT_DIR/src"
 
-mapfile -t CSPROJS < <(find "$ROOT/src" -name "*.csproj" -type f | sort)
+PACKED_COUNT=0
+SKIPPED_COUNT=0
 
-if [ ${#CSPROJS[@]} -eq 0 ]; then
-  die "No .csproj files found under $ROOT/src"
-fi
-
-packed=0
-skipped=0
-
-for csproj in "${CSPROJS[@]}"; do
-  if [[ "$csproj" =~ $EXCLUDE_REGEX ]]; then
-    warn "Skipping (excluded by regex): $csproj"
-    skipped=$((skipped + 1))
+for csproj in "${CSPROJ_FILES[@]}"; do
+  # Only pack projects explicitly marked as packable
+  if ! grep -q "<IsPackable>true</IsPackable>" "$csproj"; then
+    log "Skipping (IsPackable!=true): $csproj"
+    ((SKIPPED_COUNT++)) || true
     continue
   fi
 
   log "Packing: $csproj"
+
   dotnet pack "$csproj" \
-    -c "$CONFIGURATION" \
-    --no-build \
+    -c Release \
+    -o "$ARTIFACTS_DIR" \
     /p:PackageVersion="$VERSION" \
     /p:ContinuousIntegrationBuild=true \
-    -o "$ARTIFACTS_DIR"
+    --nologo
 
-  packed=$((packed + 1))
+  ((PACKED_COUNT++)) || true
 done
 
-log "Pack summary: packed=$packed, skipped=$skipped"
-log "Packages generated in: $ARTIFACTS_DIR"
-ls -la "$ARTIFACTS_DIR"
+if [[ "$PACKED_COUNT" -eq 0 ]]; then
+  die "No projects were packed. Ensure at least one csproj under ./src contains <IsPackable>true</IsPackable>."
+fi
+
+log "Done. Packed: $PACKED_COUNT, Skipped: $SKIPPED_COUNT"
+log "Packages:"
+ls -1 "$ARTIFACTS_DIR"/*.nupkg 2>/dev/null || true
