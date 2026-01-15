@@ -1,0 +1,53 @@
+name: CI - Build & Publish NuGet
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-pack-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Validate environment
+        shell: bash
+        run: |
+          set -e
+          chmod +x ci/*.sh
+          dotnet --info
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Pack NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Using version: $VERSION"
+          VERSION="$VERSION" ./ci/pack.sh
+
+      - name: Publish NuGet packages to GitHub Packages
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./ci/publish.sh
