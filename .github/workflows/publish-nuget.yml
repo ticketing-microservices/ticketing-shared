@@ -27,9 +27,20 @@ jobs:
       - name: Validate environment
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           chmod +x ci/*.sh
           dotnet --info
+
+      - name: Configure NuGet source (GitHub Packages)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet nuget remove source github >/dev/null 2>&1 || true
+          dotnet nuget add source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --name github \
+            --username "${{ github.actor }}" \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text
 
       - name: Restore
         run: dotnet restore
@@ -43,11 +54,19 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Using version: $VERSION"
-          VERSION="$VERSION" ./ci/pack.sh
+          VERSION="$VERSION" CONFIGURATION=Release ./ci/pack.sh
 
       - name: Publish NuGet packages to GitHub Packages
         shell: bash
         env:
           NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
+          NUGET_SOURCE: github
         run: |
           ./ci/publish.sh
+
+      - name: Upload NuGet artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ github.ref_name }}
+          path: artifacts/*.nupkg
+          if-no-files-found: error
