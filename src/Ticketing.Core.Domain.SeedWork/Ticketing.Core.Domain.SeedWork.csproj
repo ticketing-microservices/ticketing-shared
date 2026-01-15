@@ -1,0 +1,20 @@
+﻿<PropertyGroup>
+  <TargetFramework>net9.0</TargetFramework>
+  <ImplicitUsings>enable</ImplicitUsings>
+  <Nullable>enable</Nullable>
+
+  <!-- NuGet metadata -->
+  <PackageId>Ticketing.Core.Domain.SeedWork</PackageId>
+  <Version>0.1.0</Version>
+  <Authors>ticketing-microservices</Authors>
+  <Company>ticketing-microservices</Company>
+  <Description>Shared domain seedwork for the Ticketing microservices.</Description>
+  <PackageTags>dotnet;ddd;seedwork;ticketing</PackageTags>
+  <RepositoryUrl>https://github.com/ticketing-microservices/ticketing-shared</RepositoryUrl>
+  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  <PackageReadmeFile>README.md</PackageReadmeFile>
+  <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+</PropertyGroup>
+<ItemGroup>
+  <None Include="README.md" Pack="true" PackagePath="\" />
+</ItemGroup>
