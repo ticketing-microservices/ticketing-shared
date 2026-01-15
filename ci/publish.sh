@@ -23,9 +23,9 @@ log "Publishing ${#pkgs[@]} package(s) to source: $NUGET_SOURCE"
 for pkg in "${pkgs[@]}"; do
   log "Pushing $pkg"
   dotnet nuget push "$pkg" \
-    --source "$NUGET_SOURCE" \
+    --source github-ticketing \
     --api-key "$NUGET_API_KEY" \
-    --skip-duplicate
+    --skip-duplicate  
 done
 
 log "Publish completed."
