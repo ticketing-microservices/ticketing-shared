@@ -74,6 +74,7 @@ for csproj in "${CSPROJ_FILES[@]}"; do
     -o "$ARTIFACTS_DIR" \
     /p:PackageVersion="$VERSION" \
     /p:ContinuousIntegrationBuild=true \
+    --no-build \
     --nologo
 
   ((PACKED_COUNT++)) || true
